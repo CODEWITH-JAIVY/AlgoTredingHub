@@ -1,0 +1,5 @@
+packages:
+  - apps/website
+  - apps/extension
+  - apps/desktop
+  - packages/*

@@ -1,0 +1,94 @@
+name: desktop-windows
+
+on:
+  push:
+    paths:
+      - '.github/workflows/desktop-windows.yml'
+      - 'apps/desktop/**'
+      - 'packages/dashboard/**'
+      - 'packages/contracts/**'
+      - 'services/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+  pull_request:
+    paths:
+      - '.github/workflows/desktop-windows.yml'
+      - 'apps/desktop/**'
+      - 'packages/dashboard/**'
+      - 'packages/contracts/**'
+      - 'services/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build mock-only Windows desktop app
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Install Rust MSVC target
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-msvc
+          rustup default stable
+          rustup target add x86_64-pc-windows-msvc
+          rustc -vV
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck shared dashboard
+        run: pnpm --filter @algotrade/dashboard typecheck
+
+      - name: Typecheck desktop frontend
+        run: pnpm --filter @algotrade/desktop typecheck
+
+      - name: Test mock backtest and order recovery
+        run: pnpm test:backtest
+
+      - name: Build native Tauri executable
+        run: pnpm --filter @algotrade/desktop tauri build
+
+      - name: Verify desktop trust boundary
+        run: pnpm --filter @algotrade/desktop test:safety
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          $exe = 'apps/desktop/src-tauri/target/release/algotrade-hub-desktop.exe'
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            throw "Expected native executable was not produced: $exe"
+          }
+          Get-Item -LiteralPath $exe | Select-Object FullName, Length
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: algotrade-hub-windows-x64
+          path: apps/desktop/src-tauri/target/release/algotrade-hub-desktop.exe
+          if-no-files-found: error
+          retention-days: 7
+
+
+
+

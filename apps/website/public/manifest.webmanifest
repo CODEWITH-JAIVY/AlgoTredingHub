@@ -1,0 +1,10 @@
+{
+  "name": "AlgoTrade Hub",
+  "short_name": "AlgoTrade",
+  "description": "Paper-first AlgoTrade Hub workspace",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#091613",
+  "theme_color": "#091613",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

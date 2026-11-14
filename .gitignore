@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+**/target/
+**/.idea/
+**/.vscode/
+**/node_modules/
+apps/desktop/dist/
+apps/website/.next/
+apps/website/.next-*/
+apps/website/.next-isolated-check/
+apps/website/tsconfig.tsbuildinfo
+**/__pycache__/
+**/.pytest_cache/
+.DS_Store
+.work/
+.tools/

@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    url: "jdbc:h2:mem:algotrade_local_demo;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:data-local-demo.sql
+server:
+  address: 127.0.0.1
+  port: ${SERVER_PORT:8080}
+management:
+  health:
+    redis:
+      enabled: false
+app:
+  security:
+    jwt-secret-base64: ${JWT_SECRET_BASE64:}
+  trading:
+    mode: MOCK
+    live-orders-enabled: false
+  cors:
+    allowed-origins: http://localhost:3000,http://127.0.0.1:3000,http://127.0.0.1:1420,http://tauri.localhost
+  registration:
+    single-user-mode: true
+  analysis:
+    base-url: ""
+    internal-token: ""

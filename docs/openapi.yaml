@@ -1,0 +1,811 @@
+openapi: 3.1.0
+info:
+  title: AlgoTrade Hub API
+  version: 1.0.0
+  summary: Authenticated, single-user mock trading and analysis API.
+  description: |
+    This API supports synthetic NSE/BSE cash and F&O instruments and mock
+    orders only. No endpoint submits an order to a live broker. Synthetic
+    market data and derived analysis are demonstrations, not market guidance.
+    X-Correlation-ID is returned on successful and failed requests.
+servers:
+  - url: http://localhost:8080
+    description: Local development API (mock mode only)
+security:
+  - bearerAuth: []
+tags:
+  - name: Authentication
+  - name: Broker boundary
+  - name: Market data
+  - name: Analysis
+  - name: Orders
+  - name: Risk controls
+  - name: Operations
+paths:
+  /api/v1/auth/signup:
+    post:
+      tags: [Authentication]
+      summary: Create the initial single-user account
+      description: Public but rate-limited. Signup closes after the first account commits when single-user mode is enabled.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '200':
+          description: Account created and tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate with email and password
+      description: Public but rate-limited. Access tokens are short-lived; refresh tokens are opaque and rotated on refresh.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate a refresh token
+      description: Public but rate-limited. Reuse of a rotated token revokes the active token family.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New access and refresh tokens issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke a refresh token for the authenticated account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200': {description: Token revoked if it belongs to this account.}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/brokers/adapters:
+    get:
+      tags: [Broker boundary]
+      summary: List configured broker adapter capabilities
+      responses:
+        '200':
+          description: Zerodha is an inert boundary; live execution is disabled.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/BrokerAdapter'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/market/instruments:
+    get:
+      tags: [Market data]
+      summary: List active synthetic demo instruments
+      responses:
+        '200':
+          description: Catalogue with source, segment, lot and tick metadata.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Instrument'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/market/quotes:
+    get:
+      tags: [Market data]
+      summary: Read fixed demo quote values
+      description: Every quote is marked synthetic, simulated, and not fresh/current.
+      responses:
+        '200':
+          description: Synthetic demo quotes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Quote'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/market/data-status:
+    get:
+      tags: [Market data]
+      summary: Read market-data source availability and demo range
+      responses:
+        '200':
+          description: No licensed provider is currently configured.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DataStatus'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/market/candles:
+    get:
+      tags: [Market data]
+      summary: Read finalized one-minute candles
+      description: |
+        The requested range is half-open [from,to), positive, and no longer
+        than seven days. Only 1m bars are supported. Missing intervals are
+        reported as gaps and never padded. Synthetic bars are historical demo data.
+      parameters:
+        - {$ref: '#/components/parameters/InstrumentId'}
+        - name: timeframe
+          in: query
+          required: false
+          schema: {type: string, const: 1m, default: 1m}
+        - name: from
+          in: query
+          required: true
+          description: Inclusive RFC 3339 start instant.
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: true
+          description: Exclusive RFC 3339 end instant.
+          schema: {type: string, format: date-time}
+        - name: source
+          in: query
+          required: false
+          description: Optional source ID used to disambiguate stored candles.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Candle series with quality, freshness, warning and gap metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CandleSeries'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /api/v1/analysis/{instrumentId}:
+    get:
+      tags: [Analysis]
+      summary: Request an informational analysis summary
+      description: |
+        The authenticated backend aggregates finalized 1m bars and calls the
+        private analysis service. The dashboard currently requests only
+        SYNTHETIC_DEMO, which is always SUPPRESSED and non-actionable. Provider
+        analysis requires an exact server-configured source and separate
+        storage/cache/display/derived-use rights; all rights default off and no
+        licensed provider is connected. Provider history uses a bounded 350-day
+        lookback and remains suppressed for stale, incomplete, gapped, or
+        corporate-action-uncertain data. No route submits an order. The internal
+        service token and raw engine payload are never returned.
+      parameters:
+        - {$ref: '#/components/parameters/InstrumentId'}
+        - name: timeframe
+          in: query
+          required: false
+          schema: {type: string, enum: [5m, 15m, 1h, 1d], default: 5m}
+        - name: from
+          in: query
+          required: true
+          description: Inclusive RFC 3339 requested start; must precede to. Synthetic analysis is limited to seven days.
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: true
+          description: Exclusive RFC 3339 end instant; anchors the 350-calendar-day provider-analysis lookback.
+          schema: {type: string, format: date-time}
+        - name: source
+          in: query
+          required: true
+          description: Source ID; synthetic is currently used by the dashboard. Provider IDs require server-side rights configuration.
+          schema: {type: string, minLength: 1, maxLength: 50}
+      responses:
+        '200':
+          description: Bilingual informational analysis. Synthetic output is always suppressed; provider output remains fail-closed until all source, data-quality, and rights gates pass.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnalysisSummary'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /api/v1/orders:
+    get:
+      tags: [Orders]
+      summary: List the authenticated account's mock orders
+      responses:
+        '200':
+          description: Orders owned by the authenticated account.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Order'}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Orders]
+      summary: Submit one risk-checked mock order
+      description: |
+        Only MockBrokerAdapter is wired. A protective stop is mandatory. Reuse
+        clientOrderId after an uncertain outcome; the API does not blindly replay
+        a mutation. This endpoint cannot submit a live broker order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderRequest'}
+      responses:
+        '200':
+          description: Existing idempotent result or accepted mock order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+  /api/v1/orders/{id}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an open mock order owned by the account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Order state after the mock cancellation request.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/alerts:
+    get:
+      tags: [Alerts]
+      summary: List the authenticated account's server-managed alert rules
+      responses:
+        '200':
+          description: Rules are account-scoped; without explicitly confirmed data rights they remain paused.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AlertRule'}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Alerts]
+      summary: Create a one-shot price, zone-touch, or volume-spike rule
+      description: |
+        Rules are evaluated server-side only on fresh, finalized one-minute
+        candles from the explicitly configured provider after analytics and
+        end-user display rights are confirmed. Synthetic, stale, incomplete,
+        future, or mismatched-source candles never trigger alerts. The default
+        configuration keeps every rule paused because no licensed source is enabled.
+        PRICE_CROSSING requires ABOVE or BELOW and has no upperPrice. ZONE_TOUCH
+        uses price as the inclusive lower boundary and upperPrice as the
+        inclusive upper boundary; it triggers once when a continuous candle
+        enters the range from a previous close outside it. A first candle,
+        candle gap, session break, or instrument-master change only establishes
+        a new baseline.
+        VOLUME_SPIKE compares a finalized candle's volume with the mean of its
+        20 immediately preceding consecutive provider candles, using the same
+        source and instrument-master version within regular supported session
+        minutes. The default multiplier is 2.00 and valid values are 1.10–10.00.
+        It waits for complete history and suppresses zero-volume baselines.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlertRuleRequest'}
+      responses:
+        '201':
+          description: Created rule with its current paused, waiting, armed, or triggered state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertRule'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /api/v1/alerts/{id}:
+    delete:
+      tags: [Alerts]
+      summary: Delete an alert rule owned by the authenticated account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204': {description: Rule and its associated in-app event history were deleted.}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /api/v1/alerts/events:
+    get:
+      tags: [Alerts]
+      summary: List the authenticated account's in-app alert events
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, default: 50, minimum: 1, maximum: 100}
+      responses:
+        '200':
+          description: Most recent durable alert events; larger limits are clamped to 100.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/AlertEvent'}
+        '401': {$ref: '#/components/responses/Problem'}
+  /api/v1/alerts/events/{id}/read:
+    patch:
+      tags: [Alerts]
+      summary: Mark an owned in-app alert event as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Event with its stable read timestamp.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlertEvent'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /api/v1/risk/policy:
+    get:
+      tags: [Risk controls]
+      summary: Read active risk policy and today's accepted-entry count
+      responses:
+        '200':
+          description: Active limits and any scheduled relaxation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RiskPolicy'}
+        '401': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Risk controls]
+      summary: Update mock-account risk policy
+      description: Tighter values apply immediately; relaxed values are scheduled for the next supported session in the 2026 demo calendar. Requests fail closed when no verified next session exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RiskPolicyUpdate'}
+      responses:
+        '200':
+          description: Updated active and pending limits.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RiskPolicy'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /api/v1/risk/kill-switch:
+    get:
+      tags: [Risk controls]
+      summary: Read account kill-switch state
+      responses:
+        '200':
+          description: Kill-switch state and unresolved mock-order count.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/KillSwitch'}
+        '401': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Risk controls]
+      summary: Activate or deactivate the account kill switch
+      description: Activation blocks new mock orders and attempts to cancel open mock orders; deactivation returns 409 while any open, partially filled, or unknown order remains unresolved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/KillSwitchUpdate'}
+      responses:
+        '200':
+          description: Updated state with confirmed cancellations and unresolved mock orders.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/KillSwitch'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /actuator/health:
+    get:
+      tags: [Operations]
+      summary: Read sanitized health status
+      description: Public liveness/readiness summary; component details are hidden.
+      security: []
+      responses:
+        '200':
+          description: Health status without component details.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, enum: [UP, DOWN, OUT_OF_SERVICE]}
+        '503': {description: One or more readiness contributors are unavailable.}
+  /actuator/info:
+    get:
+      tags: [Operations]
+      summary: Read public application information
+      security: []
+      responses:
+        '200':
+          description: Public, non-secret application information.
+          content:
+            application/json:
+              schema: {type: object}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    InstrumentId:
+      name: instrumentId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Problem:
+      description: Safe Problem Details; code is stable for client handling and detail is user-safe.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    Problem:
+      type: object
+      required: [title, status, detail, code, path]
+      properties:
+        type: {type: string, format: uri-reference, default: about:blank}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        instance: {type: string}
+        code: {type: string, description: Stable machine-readable error code.}
+        path: {type: string}
+    SignupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        password: {type: string, format: password, minLength: 12, maxLength: 72}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, maxLength: 320}
+        password: {type: string, format: password, maxLength: 72}
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: {type: string, minLength: 1, maxLength: 200}
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, accessExpiresInSeconds, userId]
+      properties:
+        accessToken: {type: string, description: Short-lived bearer access token.}
+        refreshToken: {type: string, description: Opaque rotating credential; protect it as a secret.}
+        tokenType: {type: string, const: Bearer}
+        accessExpiresInSeconds: {type: integer, format: int64, minimum: 1}
+        userId: {type: string, format: uuid}
+    BrokerAdapter:
+      type: object
+      required: [provider, availableForOrders, supportsLiveExecution, note]
+      properties:
+        provider: {type: string, enum: [MOCK, ZERODHA]}
+        availableForOrders: {type: boolean}
+        supportsLiveExecution: {type: boolean, const: false}
+        note: {type: string}
+    Instrument:
+      type: object
+      required: [id, exchange, segment, symbol, instrumentType, lotSize, tickSize, masterVersion, source, synthetic, updatedAt]
+      properties:
+        id: {type: string, format: uuid}
+        exchange: {type: string, enum: [NSE, BSE]}
+        segment: {type: string, description: Cash or F&O segment code.}
+        symbol: {type: string}
+        instrumentType: {type: string}
+        lotSize: {type: integer, minimum: 1}
+        tickSize: {type: number, exclusiveMinimum: 0}
+        masterVersion: {type: string}
+        source: {type: string}
+        synthetic: {type: boolean, const: true}
+        updatedAt: {type: string, format: date-time}
+    Quote:
+      type: object
+      required: [instrumentId, exchange, symbol, price, source, synthetic, freshness, fresh]
+      properties:
+        instrumentId: {type: string, format: uuid}
+        exchange: {type: string, enum: [NSE, BSE]}
+        symbol: {type: string}
+        price: {type: number, exclusiveMinimum: 0}
+        source: {type: string, const: SYNTHETIC_DEMO}
+        synthetic: {type: boolean, const: true}
+        freshness: {type: string, const: SIMULATED}
+        fresh: {type: boolean, const: false}
+        asOf: {type: [string, 'null'], format: date-time}
+    DataStatus:
+      type: object
+      required: [licensedSourceConfigured, statusMessage, demoRangeStart, demoRangeEnd, sources]
+      properties:
+        licensedSourceConfigured: {type: boolean, const: false}
+        statusMessage: {type: string}
+        demoRangeStart: {type: string, format: date-time}
+        demoRangeEnd: {type: string, format: date-time}
+        sources:
+          type: array
+          items:
+            type: object
+            required: [id, enabled, synthetic, usageRightsConfirmed, live]
+            properties:
+              id: {type: string, const: SYNTHETIC_DEMO}
+              enabled: {type: boolean}
+              synthetic: {type: boolean, const: true}
+              usageRightsConfirmed: {type: boolean, const: false}
+              live: {type: boolean, const: false}
+    CandleSeries:
+      type: object
+      required: [instrumentId, timeframe, source, synthetic, freshness, fresh, timestampZone, from, to, candles, gaps, warnings]
+      properties:
+        instrumentId: {type: string, format: uuid}
+        timeframe: {type: string, const: 1m}
+        source: {type: string}
+        synthetic: {type: boolean}
+        freshness: {type: string, enum: [NO_DATA, SIMULATED, FRESH, STALE]}
+        fresh: {type: boolean}
+        timestampZone: {type: string, const: UTC}
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        candles:
+          type: array
+          items:
+            type: object
+            required: [time, open, high, low, close, volume, tradeCount, finalized, quality, instrumentMasterVersion]
+            properties:
+              time: {type: string, format: date-time}
+              open: {type: number}
+              high: {type: number}
+              low: {type: number}
+              close: {type: number}
+              volume: {type: integer, minimum: 0}
+              tradeCount: {type: integer, minimum: 0}
+              finalized: {type: boolean}
+              quality: {type: string}
+              instrumentMasterVersion: {type: string}
+        gaps:
+          type: array
+          items:
+            type: object
+            required: [from, to, reason, source]
+            properties:
+              from: {type: string, format: date-time}
+              to: {type: string, format: date-time}
+              reason: {type: string}
+              source: {type: string}
+        warnings:
+          type: array
+          items: {type: string}
+    AnalysisSummary:
+      type: object
+      required: [instrumentId, timeframe, source, freshness, dataTimestamp, algorithmVersion, complete, signalStatus, actionable, bias, candleCount, zoneCount, indicators, warnings, summaryEnglish, summaryHindi]
+      properties:
+        instrumentId: {type: string, format: uuid}
+        timeframe: {type: string, enum: [5m, 15m, 1h, 1d]}
+        source: {type: string, const: SYNTHETIC_DEMO}
+        freshness: {type: string}
+        dataTimestamp: {type: string, format: date-time}
+        algorithmVersion: {type: string}
+        complete: {type: boolean}
+        signalStatus: {type: string, enum: [SUPPRESSED, AVAILABLE]}
+        actionable:
+          type: boolean
+          description: Indicates a qualified informational signal only; it never places a broker order.
+        bias: {type: string, enum: [NEUTRAL, BULLISH, BEARISH]}
+        candleCount: {type: integer, minimum: 1}
+        zoneCount: {type: integer, minimum: 0}
+        indicators: {$ref: '#/components/schemas/AnalysisIndicators'}
+        warnings:
+          type: array
+          items: {type: string}
+        summaryEnglish:
+          type: array
+          maxItems: 6
+          items: {type: string}
+        summaryHindi:
+          type: array
+          maxItems: 6
+          items: {type: string}
+    AnalysisIndicators:
+      type: object
+      description: Historical indicator values from the shared Analysis Service. Null means the selected timeframe lacks sufficient valid history; values do not imply a trading signal.
+      required: [ema20, ema50, ema200, adx14, rsi14, macd, macdSignal, macdHistogram, atr14, volumeAverage20, latestVolumeRatio]
+      properties:
+        ema20: {type: [number, 'null']}
+        ema50: {type: [number, 'null']}
+        ema200: {type: [number, 'null']}
+        adx14: {type: [number, 'null']}
+        rsi14: {type: [number, 'null'], minimum: 0, maximum: 100}
+        macd: {type: [number, 'null']}
+        macdSignal: {type: [number, 'null']}
+        macdHistogram: {type: [number, 'null']}
+        atr14: {type: [number, 'null'], minimum: 0}
+        volumeAverage20: {type: [number, 'null'], minimum: 0}
+        latestVolumeRatio: {type: [number, 'null'], minimum: 0}
+    OrderRequest:
+      type: object
+      description: Order type fields are validated together; prices must align to the instrument tick and F&O quantities must be whole lot multiples.
+      required: [clientOrderId, instrumentId, side, orderType, quantity, protectiveStopPrice]
+      properties:
+        clientOrderId: {type: string, minLength: 8, maxLength: 100}
+        instrumentId: {type: string, format: uuid}
+        side: {type: string, enum: [BUY, SELL]}
+        orderType: {type: string, enum: [MARKET, LIMIT, STOP_MARKET, STOP_LIMIT]}
+        quantity: {type: integer, format: int64, minimum: 1}
+        limitPrice: {type: [number, 'null'], exclusiveMinimum: 0}
+        triggerPrice: {type: [number, 'null'], exclusiveMinimum: 0}
+        protectiveStopPrice: {type: number, exclusiveMinimum: 0}
+    Order:
+      type: object
+      required: [id, clientOrderId, instrumentId, side, orderType, quantity, protectiveStopPrice, status, mode, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        clientOrderId: {type: string}
+        instrumentId: {type: string, format: uuid}
+        side: {type: string, enum: [BUY, SELL]}
+        orderType: {type: string, enum: [MARKET, LIMIT, STOP_MARKET, STOP_LIMIT]}
+        quantity: {type: integer, format: int64}
+        limitPrice: {type: [number, 'null']}
+        triggerPrice: {type: [number, 'null']}
+        protectiveStopPrice: {type: number}
+        status: {type: string, enum: [OPEN, PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED, EXPIRED, UNKNOWN]}
+        brokerOrderId: {type: [string, 'null']}
+        mode: {type: string, const: MOCK}
+        createdAt: {type: string, format: date-time}
+    AlertRuleRequest:
+      type: object
+      required: [instrumentId]
+      properties:
+        instrumentId: {type: string, format: uuid}
+        ruleType: {type: string, enum: [PRICE_CROSSING, ZONE_TOUCH, VOLUME_SPIKE], default: PRICE_CROSSING, description: Defaults to PRICE_CROSSING for older clients.}
+        direction: {type: [string, 'null'], enum: [ABOVE, BELOW, null], description: Required only for PRICE_CROSSING; omitted or null for ZONE_TOUCH and VOLUME_SPIKE.}
+        price: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 999999999999.999999, description: Required for PRICE_CROSSING; inclusive lower boundary for ZONE_TOUCH; absent for VOLUME_SPIKE.}
+        upperPrice: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 999999999999.999999, description: Required for ZONE_TOUCH and strictly greater than price; absent for other types.}
+        volumeMultiplier: {type: [number, 'null'], minimum: 1.10, maximum: 10.00, default: 2.00, description: Required only for VOLUME_SPIKE; compares current volume to the average of the previous 20 consecutive eligible candles.}
+    AlertRule:
+      type: object
+      required: [id, instrumentId, ruleType, state, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        instrumentId: {type: string, format: uuid}
+        ruleType: {type: string, enum: [PRICE_CROSSING, ZONE_TOUCH, VOLUME_SPIKE]}
+        direction: {type: [string, 'null'], enum: [ABOVE, BELOW, null]}
+        price: {type: [number, 'null'], exclusiveMinimum: 0, description: Present for price and zone rules; omitted for volume rules.}
+        upperPrice: {type: [number, 'null'], exclusiveMinimum: 0}
+        volumeMultiplier: {type: [number, 'null'], minimum: 1.10, maximum: 10.00}
+        lookbackCandles: {type: [integer, 'null'], const: 20}
+        state: {type: string, enum: [PAUSED, WAITING_FOR_DATA, ARMED, TRIGGERED]}
+        reasonCode: {type: [string, 'null']}
+        createdAt: {type: string, format: date-time}
+        triggeredAt: {type: [string, 'null'], format: date-time}
+    AlertEvent:
+      type: object
+      required: [id, ruleId, instrumentId, ruleType, triggerPrice, candleTime, sourceId, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        ruleId: {type: string, format: uuid}
+        instrumentId: {type: string, format: uuid}
+        ruleType: {type: string, enum: [PRICE_CROSSING, ZONE_TOUCH, VOLUME_SPIKE]}
+        direction: {type: [string, 'null'], enum: [ABOVE, BELOW, null]}
+        thresholdPrice: {type: [number, 'null'], exclusiveMinimum: 0, description: Omitted for volume spike events.}
+        upperPrice: {type: [number, 'null'], exclusiveMinimum: 0}
+        triggerPrice: {type: number, exclusiveMinimum: 0, description: Trigger threshold for PRICE_CROSSING; candle close for ZONE_TOUCH and VOLUME_SPIKE.}
+        volumeMultiplier: {type: [number, 'null'], minimum: 1.10, maximum: 10.00}
+        lookbackCandles: {type: [integer, 'null'], const: 20}
+        triggerVolume: {type: [integer, 'null'], minimum: 0}
+        referenceAverageVolume: {type: [number, 'null'], exclusiveMinimum: 0}
+        candleTime: {type: string, format: date-time}
+        sourceId: {type: string}
+        createdAt: {type: string, format: date-time}
+        readAt: {type: [string, 'null'], format: date-time}
+    RiskPolicyUpdate:
+      type: object
+      required: [maxQuantity, maxOrderNotional, maxOpenOrders, maxDailyLoss, maxTradeLoss, maxOrdersPerDay, noNewOrdersAfter, noOrdersFirstMinutes]
+      properties:
+        maxQuantity: {type: integer, minimum: 1, maximum: 10000}
+        maxOrderNotional: {type: number, minimum: 1}
+        maxOpenOrders: {type: integer, minimum: 1, maximum: 50}
+        maxDailyLoss: {type: number, minimum: 1}
+        maxTradeLoss: {type: number, minimum: 1}
+        maxOrdersPerDay: {type: integer, minimum: 1, maximum: 100}
+        noNewOrdersAfter: {type: string, description: Minute-precision IST time; no later than 15:30 and after the opening delay., pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'}
+        noOrdersFirstMinutes: {type: integer, minimum: 0, maximum: 120}
+    RiskPolicy:
+      type: object
+      required: [maxQuantity, maxOrderNotional, maxOpenOrders, maxDailyLoss, maxTradeLoss, maxOrdersPerDay, noNewOrdersAfter, noOrdersFirstMinutes, acceptedOrderEntriesToday, updatedAt]
+      properties:
+        maxQuantity: {type: integer}
+        maxOrderNotional: {type: number}
+        maxOpenOrders: {type: integer}
+        maxDailyLoss: {type: number}
+        maxTradeLoss: {type: number}
+        maxOrdersPerDay: {type: integer}
+        noNewOrdersAfter: {type: string}
+        noOrdersFirstMinutes: {type: integer}
+        acceptedOrderEntriesToday: {type: integer}
+        pending:
+          oneOf:
+            - {type: 'null'}
+            - {$ref: '#/components/schemas/PendingRiskLimits'}
+        updatedAt: {type: string, format: date-time}
+    PendingRiskLimits:
+      type: object
+      required: [effectiveOn]
+      properties:
+        maxQuantity: {type: [integer, 'null']}
+        maxOrderNotional: {type: [number, 'null']}
+        maxOpenOrders: {type: [integer, 'null']}
+        maxDailyLoss: {type: [number, 'null']}
+        maxTradeLoss: {type: [number, 'null']}
+        maxOrdersPerDay: {type: [integer, 'null']}
+        noNewOrdersAfter: {type: [string, 'null']}
+        noOrdersFirstMinutes: {type: [integer, 'null']}
+        effectiveOn: {type: string, format: date}
+    KillSwitchUpdate:
+      type: object
+      required: [active]
+      properties:
+        active: {type: boolean}
+        reason: {type: [string, 'null'], maxLength: 500}
+    KillSwitch:
+      type: object
+      required: [active, confirmedCancelled, unresolvedOrders]
+      properties:
+        active: {type: boolean}
+        reason: {type: [string, 'null']}
+        confirmedCancelled: {type: integer, minimum: 0}
+        unresolvedOrders: {type: integer, minimum: 0}
+

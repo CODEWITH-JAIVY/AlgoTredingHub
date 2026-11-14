@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: algotrade-hub-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/algotrade}
+    username: ${DATABASE_USER:algotrade}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+app:
+  security:
+    jwt-secret-base64: ${JWT_SECRET_BASE64:}
+    access-token-minutes: 10
+    refresh-token-days: 14
+  trading:
+    mode: ${TRADING_MODE:MOCK}
+    live-orders-enabled: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,chrome-extension://placeholder,http://tauri.localhost,http://127.0.0.1:1420}
+  registration:
+    single-user-mode: ${APP_SINGLE_USER_MODE:true}
+  analysis:
+    base-url: ${ANALYSIS_BASE_URL:}
+    internal-token: ${ANALYSIS_INTERNAL_TOKEN:}
+    provider-source-id: ${ANALYSIS_PROVIDER_SOURCE_ID:}
+    provider-storage-rights-confirmed: ${ANALYSIS_PROVIDER_STORAGE_RIGHTS_CONFIRMED:false}
+    provider-cache-rights-confirmed: ${ANALYSIS_PROVIDER_CACHE_RIGHTS_CONFIRMED:false}
+    provider-display-rights-confirmed: ${ANALYSIS_PROVIDER_DISPLAY_RIGHTS_CONFIRMED:false}
+    provider-derived-rights-confirmed: ${ANALYSIS_PROVIDER_DERIVED_RIGHTS_CONFIRMED:false}
+    corporate-actions-verified: ${ANALYSIS_CORPORATE_ACTIONS_VERIFIED:false}
+  alerts:
+    max-rules-per-user: 100
+    market-data-enabled: ${ALERTS_MARKET_DATA_ENABLED:false}
+    source-id: ${ALERTS_SOURCE_ID:}
+    storage-rights-confirmed: ${ALERTS_STORAGE_RIGHTS_CONFIRMED:false}
+    derived-analytics-rights-confirmed: ${ALERTS_DERIVED_RIGHTS_CONFIRMED:false}
+    end-user-display-rights-confirmed: ${ALERTS_DISPLAY_RIGHTS_CONFIRMED:false}
+    max-candle-age-seconds: 120

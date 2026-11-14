@@ -1,0 +1,11 @@
+{
+  "name": "@algotrade/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/TradingDashboard.tsx", "./style.css": "./src/dashboard.css" },
+  "peerDependencies": { "react": ">=19.0.0", "react-dom": ">=19.0.0" },
+  "dependencies": { "@algotrade/contracts": "workspace:*" },
+  "devDependencies": { "@types/react": "19.3.0", "@types/react-dom": "19.3.0", "typescript": "5.9.3" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json", "test": "node --experimental-strip-types --test src/backtest.test.mjs src/paperReplay.test.mjs src/tradebook.test.mjs src/pendingOrder.test.mjs src/journalInsights.test.mjs src/dateFormatting.test.mjs src/requestEpoch.test.mjs src/analysisDisplay.test.mjs src/scannerStatus.test.mjs" }
+}

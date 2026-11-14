@@ -1,0 +1,17 @@
+{
+  "name": "algotrade-hub",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @algotrade/website dev",
+    "dev:extension": "pnpm --filter @algotrade/extension dev",
+    "dev:desktop": "pnpm --filter @algotrade/desktop tauri dev",
+    "build:desktop": "pnpm --filter @algotrade/desktop tauri build",
+    "build": "pnpm --filter @algotrade/extension build && pnpm package:extension-preview && pnpm --filter @algotrade/website build",
+    "build:all": "pnpm build && pnpm --filter @algotrade/desktop build",
+    "typecheck": "pnpm --filter @algotrade/dashboard typecheck && pnpm --filter @algotrade/website typecheck && pnpm --filter @algotrade/extension typecheck",
+    "typecheck:all": "pnpm --filter @algotrade/dashboard typecheck && pnpm --filter @algotrade/website typecheck && pnpm --filter @algotrade/extension typecheck && pnpm --filter @algotrade/desktop typecheck",
+    "package:extension-preview": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension-preview.ps1",
+    "test:backtest": "pnpm --filter @algotrade/dashboard test"
+  }
+}

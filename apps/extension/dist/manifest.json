@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "AlgoTrade Hub — Paper workspace",
+  "version": "0.1.0",
+  "description": "A mock-first trading side panel. It cannot place live broker orders.",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel"],
+  "host_permissions": ["http://127.0.0.1:8080/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Open AlgoTrade Hub" },
+  "side_panel": { "default_path": "index.html" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:8080" }
+}
